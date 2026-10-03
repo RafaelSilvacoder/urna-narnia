@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulador de Urna</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:#2b2e33;color:#eee;font-family:system-ui,sans-serif}
+.w{max-width:420px;margin:0 auto;padding:10px}
+.ban{background:#b45309;color:#fff;text-align:center;font-size:12px;padding:4px;border-radius:6px;margin-bottom:8px}
+.top{display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px}
+button{font:inherit;cursor:pointer}
+.mini{background:#444;color:#fff;border:0;border-radius:6px;padding:6px 10px}
+.screen{background:#e9ecef;color:#111;border-radius:8px;min-height:230px;padding:14px;border:4px solid #111}
+.screen small{display:block;font-size:12px}
+.num{display:flex;gap:6px;margin:10px 0}
+.num span{width:40px;height:48px;border:2px solid #111;font-size:30px;display:flex;align-items:center;justify-content:center;background:#fff}
+.name{font-size:20px;font-weight:700;margin-top:6px}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.pad button{background:#111;color:#fff;border:0;border-radius:6px;padding:16px 0;font-size:22px}
+.pad .z{grid-column:2}
+.act{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.act button{border:0;border-radius:6px;padding:14px 4px;font-weight:700;font-size:13px}
+.b{background:#fff;color:#111}.c{background:#e8590c;color:#111}.ok{background:#2f9e44;color:#fff}
+.panel{background:#1f2124;border-radius:8px;padding:12px;margin-top:10px;display:none}
+.panel.on{display:block}
+.row{border-bottom:1px solid #444;padding:8px 0;display:grid;grid-template-columns:60px 1fr;gap:6px}
+.row input,.row select{width:100%;padding:6px;border-radius:5px;border:1px solid #555;background:#333;color:#fff;font:inherit}
+.row .l{grid-column:1/-1;font-size:12px;color:#bbb;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;border-bottom:1px solid #444;text-align:right}td:first-child,th:first-child{text-align:left}
+.hint{font-size:12px;color:#aaa}
+</style></head><body><div class="w">
+<div class="ban">SIMULADOR / DEMONSTRAÇÃO — não é uma urna real</div>
+<div class="top"><button class="mini" onclick="tog('res')">Resultado</button><button class="mini" onclick="tog('fin')">Resultado final</button><button class="mini" onclick="tog('cfg')">⚙ Config</button></div>
+
+<div class="screen" id="scr"></div>
+<div class="pad">
+<button>1</button><button>2</button><button>3</button><button>4</button><button>5</button><button>6</button><button>7</button><button>8</button><button>9</button><button class="z">0</button>
+</div>
+<div class="act"><button class="b" onclick="blank()">BRANCO</button><button class="c" onclick="clr()">CORRIGE</button><button class="ok" onclick="conf()">CONFIRMA</button></div>
+
+<div class="panel" id="cfg">
+<b>Configuração</b>
+<p class="hint">Para cada candidato: % dos votos digitados nele que serão desviados e para quem. Ex.: Flávio 20% → X = a cada 10 votos, 2 vão para X. Para zerar um candidato, desvie 100%.</p>
+<div id="cl"></div>
+<button class="mini" onclick="addC()">+ candidato</button>
+</div>
+
+<div class="panel" id="fin" style="text-align:center">
+<b>RESULTADO FINAL</b>
+<div id="fb" style="margin-top:12px"></div>
+</div>
+
+<div class="panel" id="res">
+<b>Resultado</b>
+<table id="rt"></table>
+<p class="hint" id="rb"></p>
+<button class="mini" onclick="reset()">Zerar votação</button>
+</div>
+</div>
+<script>
+let C=[{n:'11',name:'Jonas',pct:20,dest:'45'},{n:'33',name:'Maria',pct:0,dest:'33'},{n:'45',name:'João',pct:0,dest:'45'},{n:'17',name:'Carlos',pct:100,dest:'33'}];
+let S={shown:{},div:{},real:{},blank:0};
+try{const x=JSON.parse(localStorage.getItem('urna')||'null');if(x){C=x.C;S=x.S}}catch(e){}
+let buf='',done=false;
+const $=id=>document.getElementById(id);
+const save=()=>{try{localStorage.setItem('urna',JSON.stringify({C,S}))}catch(e){}};
+const find=n=>C.find(c=>c.n===n);
+function draw(){
+ const c=buf.length==2?find(buf):null;
+ let h='';
+ if(done){h='<div style="text-align:center;font-size:60px;margin-top:40px">FIM</div><div style="text-align:center">VOTOU</div>'}
+ else{
+  h='<small>SEU VOTO PARA</small><b>PRESIDENTE</b><div class="num">'+[0,1].map(i=>'<span>'+(buf[i]||'')+'</span>').join('')+'</div>';
+  if(buf==='BRANCO')h='<b style="font-size:26px;display:block;margin-top:70px;text-align:center">VOTO EM BRANCO</b>';
+  else if(buf.length==2)h+=c?'<div class="name">Nome: '+c.name+'</div><small>Número: '+c.n+'</small>':'<div class="name">NÚMERO ERRADO</div><div class="name">VOTO NULO</div>';
+  if(buf.length>0||buf==='BRANCO')h+='<small style="margin-top:14px;border-top:1px solid #999;padding-top:6px">Aperte CONFIRMA para confirmar | CORRIGE para reiniciar</small>';
+ }
+ $('scr').innerHTML=h;
+}
+document.querySelectorAll('.pad button').forEach(b=>b.onclick=()=>{if(done||buf==='BRANCO'||buf.length>=2)return;buf+=b.textContent;draw()});
+function clr(){if(done)return;buf='';draw()}
+function blank(){if(done)return;buf='BRANCO';draw()}
+function conf(){
+ if(done||!buf)return;
+ if(buf==='BRANCO')S.blank++;
+ else if(buf.length==2){
+  const c=find(buf);
+  if(!c)S.blank++;
+  else{
+   const t=S.shown[c.n]=(S.shown[c.n]||0)+1;
+   const d=S.div[c.n]||0;
+   const want=Math.round(t*(+c.pct||0)/100);
+   let to=c.n;
+   if(c.dest&&c.dest!==c.n&&d<want){to=c.dest;S.div[c.n]=d+1}
+   S.real[to]=(S.real[to]||0)+1;
+  }
+ } else return;
+ save();done=true;draw();
+ try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator();o.frequency.value=880;o.connect(a.destination);o.start();o.stop(a.currentTime+.4)}catch(e){}
+ setTimeout(()=>{done=false;buf='';draw();rr()},1800);
+}
+function tog(id){['cfg','res','fin'].forEach(x=>$(x).classList.toggle('on',x===id&&!$(x).classList.contains('on')));if(id==='res')rr();else if(id==='fin')rf();else rc()}
+function rc(){
+ $('cl').innerHTML=C.map((c,i)=>`<div class="row"><input value="${c.n}" maxlength="2" onchange="up(${i},'n',this.value)"><input value="${c.name}" onchange="up(${i},'name',this.value)">
+ <div class="l"><label>% desviado<input type="number" min="0" max="100" value="${c.pct}" onchange="up(${i},'pct',this.value)"></label>
+ <label>Desviar para<select onchange="up(${i},'dest',this.value)">${C.map(d=>`<option value="${d.n}" ${d.n===c.dest?'selected':''}>${d.n} ${d.name}</option>`).join('')}</select></label></div></div>`).join('');
+}
+function up(i,k,v){C[i][k]=v;save();rc()}
+function addC(){C.push({n:String(10+C.length*7%90),name:'Novo',pct:0,dest:''});save();rc()}
+function rr(){
+ let t='<tr><th>Candidato</th><th>Digitados</th><th>Contados</th></tr>';
+ C.forEach(c=>t+=`<tr><td>${c.n} ${c.name}</td><td>${S.shown[c.n]||0}</td><td>${S.real[c.n]||0}</td></tr>`);
+ $('rt').innerHTML=t;$('rb').textContent='Brancos/nulos: '+S.blank;
+}
+function rf(){
+ const tot=C.reduce((a,c)=>a+(S.real[c.n]||0),0);
+ if(!tot){$('fb').innerHTML='<p class="hint">Ainda não há votos computados.</p>';return}
+ const r=C.map(c=>({c,v:S.real[c.n]||0})).sort((a,b)=>b.v-a.v);
+ const pc=v=>(v/tot*100).toFixed(2).replace('.',',')+'%';
+ let h;
+ if(r[1]&&r[0].v===r[1].v)h='<div style="font-size:20px;font-weight:700">EMPATE</div><p>'+r.filter(x=>x.v===r[0].v).map(x=>x.c.name).join(' e ')+' com '+pc(r[0].v)+' dos votos cada.</p>';
+ else h='<p>O candidato eleito é o</p><div style="font-size:30px;font-weight:700;color:#69db7c">'+r[0].c.name+'</div><p>com <b>'+pc(r[0].v)+'</b> dos votos, o candidato com mais votos computados.</p>';
+ h+='<table>'+r.map(x=>'<tr><td>'+x.c.n+' '+x.c.name+'</td><td>'+x.v+'</td><td>'+pc(x.v)+'</td></tr>').join('')+'</table><p class="hint">Percentual sobre '+tot+' votos válidos (brancos e nulos não entram). Baseado nos votos contados.</p>';
+ $('fb').innerHTML=h;
+}
+function reset(){S={shown:{},div:{},real:{},blank:0};save();rr();rf()}
+draw();rc();
+</script></body></html>
